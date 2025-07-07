@@ -339,15 +339,25 @@ const parseAllOf = ({
 
   for (const compositionSchema of compositionSchemas) {
     // Mark that we are inside an allOf for parseObject
-    const nextState = {
-      ...state,
-      inAllOf: true,
-    };
-    const irCompositionSchema = schemaToIrSchema({
-      context,
-      schema: compositionSchema,
-      state: nextState,
-    });
+    // Só passe inAllOf para o schema diretamente em allOf se NÃO for $ref
+    let irCompositionSchema;
+    if (
+      compositionSchema &&
+      typeof compositionSchema === 'object' &&
+      !('$ref' in compositionSchema)
+    ) {
+      irCompositionSchema = schemaToIrSchema({
+        context,
+        schema: compositionSchema,
+        state: { ...state, inAllOf: true },
+      });
+    } else {
+      irCompositionSchema = schemaToIrSchema({
+        context,
+        schema: compositionSchema,
+        state,
+      });
+    }
 
     irSchema.accessScopes = mergeSchemaAccessScopes(
       irSchema.accessScopes,
@@ -400,12 +410,12 @@ const parseAllOf = ({
       }
 
       if (!state.circularReferenceTracker.has(compositionSchema.$ref)) {
+        // Não propague inAllOf para refs
         const irRefSchema = schemaToIrSchema({
           context,
           schema: ref,
           state: Object.assign({}, state, {
             $ref: compositionSchema.$ref,
-            inAllOf: true,
           }),
         });
         irSchema.accessScopes = mergeSchemaAccessScopes(

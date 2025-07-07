@@ -248,6 +248,20 @@ const parseObject = ({
     irSchema.properties = schemaProperties;
   }
 
+  // --- PATCH: Avoid [key: string]: never for empty objects in allOf ---
+  // If this object is empty (no properties, no required, no patternProperties, no min/maxProperties)
+  // and additionalProperties is false, and we are inside an allOf composition,
+  // then do NOT emit additionalProperties: { type: 'never' }.
+  // Instead, let the composition enforce the restriction.
+  const isEmptyObject =
+    (!schema.properties || Object.keys(schema.properties).length === 0) &&
+    (!schema.required || schema.required.length === 0) &&
+    schema.minProperties === undefined &&
+    schema.maxProperties === undefined;
+
+  // Heuristic: if state has a marker for "inAllOf", skip [key: string]: never for empty objects
+  const inAllOf = (state as any)?.inAllOf;
+
   if (schema.additionalProperties === undefined) {
     if (!irSchema.properties) {
       irSchema.additionalProperties = {
@@ -255,9 +269,14 @@ const parseObject = ({
       };
     }
   } else if (typeof schema.additionalProperties === 'boolean') {
-    irSchema.additionalProperties = {
-      type: schema.additionalProperties ? 'unknown' : 'never',
-    };
+    if (schema.additionalProperties === false && isEmptyObject && inAllOf) {
+      // Do not emit [key: string]: never for empty object in allOf
+      // Just skip setting additionalProperties
+    } else {
+      irSchema.additionalProperties = {
+        type: schema.additionalProperties ? 'unknown' : 'never',
+      };
+    }
   } else {
     const irAdditionalPropertiesSchema = schemaToIrSchema({
       context,
@@ -319,10 +338,15 @@ const parseAllOf = ({
   const compositionSchemas = schema.allOf;
 
   for (const compositionSchema of compositionSchemas) {
+    // Mark that we are inside an allOf for parseObject
+    const nextState = {
+      ...state,
+      inAllOf: true,
+    };
     const irCompositionSchema = schemaToIrSchema({
       context,
       schema: compositionSchema,
-      state,
+      state: nextState,
     });
 
     irSchema.accessScopes = mergeSchemaAccessScopes(
@@ -379,10 +403,10 @@ const parseAllOf = ({
         const irRefSchema = schemaToIrSchema({
           context,
           schema: ref,
-          state: {
-            ...state,
+          state: Object.assign({}, state, {
             $ref: compositionSchema.$ref,
-          },
+            inAllOf: true,
+          }),
         });
         irSchema.accessScopes = mergeSchemaAccessScopes(
           irSchema.accessScopes,

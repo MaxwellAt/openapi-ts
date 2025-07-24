@@ -339,7 +339,7 @@ const parseAllOf = ({
 
   for (const compositionSchema of compositionSchemas) {
     // Mark that we are inside an allOf for parseObject
-    // Só passe inAllOf para o schema diretamente em allOf se NÃO for $ref
+    // Only pass inAllOf directly to the schema in allOf if it is NOT a $ref.
     let irCompositionSchema;
     if (
       compositionSchema &&
@@ -410,7 +410,7 @@ const parseAllOf = ({
       }
 
       if (!state.circularReferenceTracker.has(compositionSchema.$ref)) {
-        // Não propague inAllOf para refs
+        // Do not propagate inAllOf to refs
         const irRefSchema = schemaToIrSchema({
           context,
           schema: ref,

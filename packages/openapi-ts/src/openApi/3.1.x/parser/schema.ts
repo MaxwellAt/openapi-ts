@@ -363,6 +363,14 @@ const parseAllOf = ({
       state,
     });
 
+    if (
+      !Object.keys(compositionSchema).length ||
+      (Object.keys(compositionSchema).length === 1 &&
+        compositionSchema.additionalProperties === false)
+    ) {
+      continue;
+    }
+
     if (schema.required) {
       if (irCompositionSchema.required) {
         irCompositionSchema.required = [
